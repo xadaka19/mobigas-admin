@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Store, ShoppingBag,
-  CreditCard, TrendingUp, Building2, DollarSign, MessageSquare,
+  CreditCard, TrendingUp, Building2, DollarSign, MessageSquare, MessageCircle,
   LogOut, Flame, Menu, X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -18,6 +18,7 @@ const navItems = [
   { path: '/bank-partners', label: 'Bank Partners', icon: Building2 },
   { path: '/finance', label: 'Finance', icon: DollarSign },
   { path: '/support-tickets', label: 'Support Tickets', icon: MessageSquare },
+  { path: '/in-app-chats', label: 'In-App Chats', icon: MessageCircle },
 ];
 
 export default function Layout() {

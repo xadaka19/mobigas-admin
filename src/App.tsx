@@ -14,6 +14,7 @@ import BankPartners from './pages/BankPartners';
 import Finance from './pages/Finance';
 import Login from './pages/Login';
 import SupportTickets from './pages/SupportTickets';
+import InAppChats from './pages/InAppChats';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -48,6 +49,7 @@ function App() {
           <Route path="bank-partners" element={<BankPartners />} />
           <Route path="finance" element={<Finance />} />
           <Route path="support-tickets" element={<SupportTickets />} />
+          <Route path="in-app-chats" element={<InAppChats />} />
         </Route>
       </Routes>
     </BrowserRouter>
