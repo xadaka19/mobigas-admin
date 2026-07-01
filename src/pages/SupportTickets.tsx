@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, MessageSquare, CheckCircle, Clock, ExternalLink } from 'lucide-react';
+import { Search, CheckCircle, Clock, ExternalLink } from 'lucide-react';
 
 export default function SupportTickets() {
   const [tickets, setTickets] = useState<any[]>([]);
