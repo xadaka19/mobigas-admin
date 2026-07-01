@@ -147,7 +147,7 @@ export default function SupportTickets() {
                 <p className="text-sm text-gray-700 leading-relaxed">{selected.message}</p>
               </div>
               <div className="flex gap-3">
-                
+                <a
                   href={`mailto:${selected.email}?subject=Re: Your MobiGas support request`}
                   className="flex-1 flex items-center justify-center gap-2 bg-[#0D1B40] text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-opacity-90 transition-colors"
                 >
