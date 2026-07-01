@@ -13,7 +13,7 @@ export default function SupportTickets() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<any>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'replied' | 'resolved'>(' all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'open' | 'replied' | 'resolved'>('all');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -55,7 +55,7 @@ export default function SupportTickets() {
       if (res.ok) {
         setReply('');
         loadTickets();
-        setSelected(prev => ({ ...prev, status: 'replied', lastReply: reply }));
+        setSelected((prev: any) => ({ ...prev, status: 'replied', lastReply: reply }));
       }
     } catch (e) {
       console.error('Reply failed', e);
@@ -79,7 +79,7 @@ export default function SupportTickets() {
         }),
       });
       loadTickets();
-      setSelected(prev => ({ ...prev, assignedTo: member?.name, status: 'assigned' }));
+      setSelected((prev: any) => ({ ...prev, assignedTo: member?.name, status: 'assigned' }));
     } catch (e) {
       console.error('Assign failed', e);
     }
