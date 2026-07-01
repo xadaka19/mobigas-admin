@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Eye, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { Search, Eye, CheckCircle, XCircle, Bell, ExternalLink } from 'lucide-react';
+import NotifyModal from '../components/NotifyModal';
+import { sendNotification, sendEmailNotification } from '../services/notifications';
 import CertificateVerifier from '../components/CertificateVerifier';
 
 export default function Vendors() {
@@ -9,6 +11,7 @@ export default function Vendors() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
+  const [notifying, setNotifying] = useState<any>(null);
 
   useEffect(() => { loadVendors(); }, []);
 
@@ -106,6 +109,9 @@ export default function Vendors() {
                     <button onClick={() => setSelected(v)} className="text-[#F97316] hover:text-orange-700">
                       <Eye size={16} />
                     </button>
+                    <button onClick={() => setNotifying(v)} className="text-blue-400 hover:text-blue-600" title="Notify">
+                      <Bell size={16} />
+                    </button>
                     <button
                       onClick={() => toggleVerified(v.id, v.isVerified)}
                       className={v.isVerified ? 'text-red-400 hover:text-red-600' : 'text-green-500 hover:text-green-700'}
@@ -121,6 +127,35 @@ export default function Vendors() {
         </table>
       </div>
 
+      {notifying && (
+        <NotifyModal
+          recipientName={notifying.businessName}
+          fcmToken={notifying.fcmToken}
+          type="vendor"
+          onClose={() => setNotifying(null)}
+          onSend={async ({ title, body, channel }) => {
+            if (channel === 'push' || channel === 'both') {
+              await sendNotification({
+                fcmToken: notifying.fcmToken,
+                title,
+                body,
+                recipientId: notifying.id,
+                recipientType: 'vendor',
+              });
+            }
+            if (channel === 'email' || channel === 'both') {
+              if (notifying.email) {
+                await sendEmailNotification({
+                  to: notifying.email,
+                  subject: title,
+                  body,
+                  recipientName: notifying.ownerName || notifying.businessName,
+                });
+              }
+            }
+          }}
+        />
+      )}
       {selected && (
         <VendorModal vendor={selected} onClose={() => setSelected(null)}
           onVerify={() => { toggleVerified(selected.id, selected.isVerified); setSelected(null); }} />

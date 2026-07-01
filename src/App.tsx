@@ -13,6 +13,7 @@ import StockLoans from './pages/StockLoans';
 import BankPartners from './pages/BankPartners';
 import Finance from './pages/Finance';
 import Login from './pages/Login';
+import SupportTickets from './pages/SupportTickets';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -46,6 +47,7 @@ function App() {
           <Route path="stock-loans" element={<StockLoans />} />
           <Route path="bank-partners" element={<BankPartners />} />
           <Route path="finance" element={<Finance />} />
+          <Route path="support-tickets" element={<SupportTickets />} />
         </Route>
       </Routes>
     </BrowserRouter>

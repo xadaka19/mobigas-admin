@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
-import { collection, getDocs, orderBy, query, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, orderBy, query, doc, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Eye, ExternalLink } from 'lucide-react';
+import { Search, Eye, Bell, ExternalLink, AlertTriangle, ShieldCheck } from 'lucide-react';
+import NotifyModal from '../components/NotifyModal';
+import { sendNotification, sendEmailNotification } from '../services/notifications';
 
 export default function Customers() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any>(null);
+  const [notifying, setNotifying] = useState<any>(null);
+  const [flaggedOnly, setFlaggedOnly] = useState(false);
 
   useEffect(() => { loadCustomers(); }, []);
 
@@ -27,12 +31,25 @@ export default function Customers() {
     setSelected(null);
   };
 
-  const filtered = customers.filter(c =>
-    !search ||
-    c.name?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search) ||
-    c.nationalId?.includes(search)
-  );
+  const clearFlag = async (customerId: string) => {
+    await updateDoc(doc(db, 'users', customerId), {
+      deviceFlagged: false,
+      flagReviewedAt: new Date(),
+    });
+    loadCustomers();
+    setSelected(null);
+  };
+
+  const flaggedCount = customers.filter(c => c.deviceFlagged).length;
+
+  const filtered = customers.filter(c => {
+    const matchSearch = !search ||
+      c.name?.toLowerCase().includes(search.toLowerCase()) ||
+      c.phone?.includes(search) ||
+      c.nationalId?.includes(search);
+    const matchFlag = !flaggedOnly || c.deviceFlagged;
+    return matchSearch && matchFlag;
+  });
 
   const statusColor: Record<string, string> = {
     none: 'bg-gray-100 text-gray-600',
@@ -44,9 +61,24 @@ export default function Customers() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#0D1B40]">Customers</h1>
-        <p className="text-gray-500 text-sm mt-1">{customers.length} registered customers</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#0D1B40]">Customers</h1>
+          <p className="text-gray-500 text-sm mt-1">{customers.length} registered customers</p>
+        </div>
+        {flaggedCount > 0 && (
+          <button
+            onClick={() => setFlaggedOnly(!flaggedOnly)}
+            className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
+              flaggedOnly
+                ? 'bg-red-500 text-white'
+                : 'bg-red-50 text-red-600 hover:bg-red-100'
+            }`}
+          >
+            <AlertTriangle size={16} />
+            {flaggedCount} flagged account{flaggedCount !== 1 ? 's' : ''}
+          </button>
+        )}
       </div>
 
       <div className="relative mb-6">
@@ -77,10 +109,19 @@ export default function Customers() {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
               <tr><td colSpan={8} className="p-8 text-center text-gray-400">Loading...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={8} className="p-8 text-center text-gray-400">No customers found</td></tr>
             ) : filtered.map(c => (
-              <tr key={c.id} className="hover:bg-gray-50">
+              <tr key={c.id} className={`hover:bg-gray-50 ${c.deviceFlagged ? 'bg-red-50/50' : ''}`}>
                 <td className="p-4">
-                  <div className="font-medium text-[#0D1B40]">{c.name}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-medium text-[#0D1B40]">{c.name}</div>
+                    {c.deviceFlagged && (
+                      <span title="Shared device detected — possible duplicate account">
+                        <AlertTriangle size={14} className="text-red-500" />
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-gray-400">{c.email}</div>
                 </td>
                 <td className="p-4 text-gray-700">{c.phone}</td>
@@ -108,6 +149,13 @@ export default function Customers() {
                   >
                     <Eye size={16} />
                   </button>
+                  <button
+                    onClick={() => setNotifying(c)}
+                    className="text-blue-400 hover:text-blue-600 transition-colors ml-2"
+                    title="Send notification"
+                  >
+                    <Bell size={16} />
+                  </button>
                 </td>
               </tr>
             ))}
@@ -115,27 +163,84 @@ export default function Customers() {
         </table>
       </div>
 
-      {/* Customer detail modal */}
+      {notifying && (
+        <NotifyModal
+          recipientName={notifying.name || notifying.customerName}
+          fcmToken={notifying.fcmToken}
+          type="customer"
+          onClose={() => setNotifying(null)}
+          onSend={async ({ title, body, channel }) => {
+            if (channel === 'push' || channel === 'both') {
+              await sendNotification({
+                fcmToken: notifying.fcmToken,
+                title,
+                body,
+                recipientId: notifying.id,
+                recipientType: 'customer',
+              });
+            }
+            if (channel === 'email' || channel === 'both') {
+              if (notifying.email) {
+                await sendEmailNotification({
+                  to: notifying.email,
+                  subject: title,
+                  body,
+                  recipientName: notifying.name || notifying.customerName,
+                });
+              }
+            }
+          }}
+        />
+      )}
       {selected && (
         <CustomerModal
           customer={selected}
           onClose={() => setSelected(null)}
           onUpdateCredit={updateCreditLimit}
+          onClearFlag={clearFlag}
         />
       )}
     </div>
   );
 }
 
-function CustomerModal({ customer, onClose, onUpdateCredit }: any) {
+function CustomerModal({ customer, onClose, onUpdateCredit, onClearFlag }: any) {
   const [limit, setLimit] = useState(customer.bankApprovedLimit || '');
   const [bankName, setBankName] = useState(customer.partnerBankName || '');
   const [saving, setSaving] = useState(false);
+  const [clearingFlag, setClearingFlag] = useState(false);
+  const [relatedAccounts, setRelatedAccounts] = useState<any[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
+
+  useEffect(() => {
+    if (customer.deviceFlagged && customer.deviceFingerprint) {
+      loadRelatedAccounts();
+    }
+  }, [customer.id]);
+
+  const loadRelatedAccounts = async () => {
+    setLoadingRelated(true);
+    try {
+      const snap = await getDocs(
+        query(collection(db, 'users'), where('deviceFingerprint', '==', customer.deviceFingerprint))
+      );
+      setRelatedAccounts(snap.docs.filter(d => d.id !== customer.id).map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error('Failed to load related accounts', e);
+    }
+    setLoadingRelated(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
     await onUpdateCredit(customer.id, Number(limit), bankName);
     setSaving(false);
+  };
+
+  const handleClearFlag = async () => {
+    setClearingFlag(true);
+    await onClearFlag(customer.id);
+    setClearingFlag(false);
   };
 
   return (
@@ -146,6 +251,42 @@ function CustomerModal({ customer, onClose, onUpdateCredit }: any) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
         <div className="p-6 space-y-6">
+          {/* Fraud flag warning */}
+          {customer.deviceFlagged && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle size={18} className="text-red-600" />
+                <span className="font-semibold text-red-700 text-sm">Shared device detected</span>
+              </div>
+              <p className="text-xs text-red-600 mb-3">
+                This account was registered on a device that has also been used to register {relatedAccounts.length > 0 ? `${relatedAccounts.length} other account(s)` : 'at least one other account'}.
+                This could be a legitimate shared household device, or an attempt to abuse credit limits using multiple identities. Review before approving credit.
+              </p>
+
+              {loadingRelated ? (
+                <div className="text-xs text-red-400">Loading related accounts...</div>
+              ) : relatedAccounts.length > 0 ? (
+                <div className="space-y-2 mb-3">
+                  {relatedAccounts.map(acc => (
+                    <div key={acc.id} className="bg-white rounded-lg p-2 border border-red-100 text-xs">
+                      <div className="font-medium text-[#0D1B40]">{acc.name}</div>
+                      <div className="text-gray-500">{acc.phone} · ID: {acc.nationalId}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <button
+                onClick={handleClearFlag}
+                disabled={clearingFlag}
+                className="flex items-center gap-2 text-xs bg-white border border-red-200 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-50 transition-colors"
+              >
+                <ShieldCheck size={14} />
+                {clearingFlag ? 'Clearing...' : 'Mark as reviewed — clear flag'}
+              </button>
+            </div>
+          )}
+
           {/* Selfie */}
           {customer.selfieUrl && (
             <div className="flex items-center gap-4">
